@@ -3,23 +3,34 @@ package com.example.assignment2;
 import android.Manifest;
 import android.content.Intent;
 import android.content.pm.PackageManager;
+import android.location.Address;
+import android.location.Geocoder;
+import android.location.Location;
 import android.net.Uri;
 import android.os.Build;
 import android.provider.MediaStore;
 import android.util.Log;
 import android.view.View;
 import android.widget.ImageView;
+import android.widget.TextView;
 import android.widget.Toast;
 import android.widget.VideoView;
+import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
 import android.os.Bundle;
 import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
 import androidx.core.content.FileProvider;
+import com.google.android.gms.location.FusedLocationProviderClient;
+import com.google.android.gms.location.LocationServices;
+import com.google.android.gms.tasks.OnCompleteListener;
+import com.google.android.gms.tasks.Task;
 
 import java.io.File;
+import java.io.IOException;
 import java.text.SimpleDateFormat;
 import java.util.Date;
+import java.util.List;
 import java.util.Locale;
 
 public class MainActivity extends AppCompatActivity {
@@ -29,20 +40,39 @@ public class MainActivity extends AppCompatActivity {
 
     VideoView mVideoView ;
     ImageView mImageView;
+    TextView mTextView;
+
+    // The entry point to the Fused Location Provider.
+    private FusedLocationProviderClient mFusedLocationProviderClient;
+
+    // The geographical location where the device is currently located. That is, the last-known location retrieved by the Fused Location Provider.
+    private Location mLastKnownLocation;
+
+    // Keys for storing activity state.
+    private static final String KEY_LOCATION = "location";
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
 
+        // Retrieve location from saved instance state.
+        if (savedInstanceState != null)
+            mLastKnownLocation = savedInstanceState.getParcelable(KEY_LOCATION);
+
+        // Construct a FusedLocationProviderClient.
+        mFusedLocationProviderClient = LocationServices.getFusedLocationProviderClient(this);
+
         mVideoView = (VideoView) findViewById(R.id.videoView);
         mImageView = (ImageView) findViewById(R.id.photoView);
+        mTextView = (TextView) findViewById(R.id.location);
 
         mVideoView.setVisibility(View.GONE);
         mImageView.setVisibility(View.GONE);
     }
 
     public void onTakePhotoClick(View v) {
+        getDeviceLocation();
         if (!getPermission())
             return;
 
@@ -74,7 +104,8 @@ public class MainActivity extends AppCompatActivity {
         String[] permissions = new String[] {
                 Manifest.permission.READ_EXTERNAL_STORAGE,
                 Manifest.permission.WRITE_EXTERNAL_STORAGE,
-                Manifest.permission.CAMERA
+                Manifest.permission.CAMERA,
+                Manifest.permission.ACCESS_COARSE_LOCATION,
         };
 
         for (String permission: permissions) {
@@ -104,6 +135,36 @@ public class MainActivity extends AppCompatActivity {
 
         Log.i("info", fileUri.toString());
         return fileUri;
+    }
+
+    private void getDeviceLocation() {
+        if (!getPermission())
+            return;
+
+        Task<Location> locationResult = mFusedLocationProviderClient.getLastLocation();
+        locationResult.addOnCompleteListener(this, new OnCompleteListener<Location>() {
+            @Override
+            public void onComplete(@NonNull Task<Location> task) {
+                if (task.isSuccessful()) {
+                    String currentOrDefault = "Current";
+
+                    // Obtain the current location of the device
+                    mLastKnownLocation = task.getResult();
+                    if (mLastKnownLocation == null) {
+                        currentOrDefault = "Default";
+                        // Set current location to the default location
+                        mLastKnownLocation = new Location("");
+                    }
+                    // Show location details on the location TextView
+                    String msg = currentOrDefault + " Location: " +
+                            Double.toString(mLastKnownLocation.getLatitude()) + ", " +
+                            Double.toString(mLastKnownLocation.getLongitude());
+
+                    mTextView.setText(msg);
+                    Log.i("info", msg);
+                }
+            }
+        });
     }
 
 }
