@@ -24,6 +24,7 @@ import com.google.android.gms.location.FusedLocationProviderClient;
 import com.google.android.gms.location.LocationServices;
 import com.google.android.gms.tasks.OnCompleteListener;
 import com.google.android.gms.tasks.Task;
+import com.google.firebase.storage.FirebaseStorage;
 import okhttp3.Call;
 import okhttp3.OkHttpClient;
 import okhttp3.Request;
@@ -33,7 +34,8 @@ import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
 
-import java.io.*;
+import java.io.File;
+import java.io.IOException;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Date;
@@ -59,8 +61,11 @@ public class MainActivity extends AppCompatActivity {
     // Keys for storing activity state.
     private static final String KEY_LOCATION = "location";
 
+    // http client
     OkHttpClient client;
 
+    // firebase storage instance
+    FirebaseStorage storage;
     List<MediaInfo> mediaInfos;
 
     String fileName;
@@ -86,6 +91,9 @@ public class MainActivity extends AppCompatActivity {
 
         // http client to call api
         client = new OkHttpClient();
+
+        // storage instance
+        storage = FirebaseStorage.getInstance();
 
         mediaInfos = new ArrayList<>();
 
@@ -199,7 +207,7 @@ public class MainActivity extends AppCompatActivity {
         String url = "https://maps.googleapis.com/maps/api/geocode/json?";
         String latlng = "latlng=" + mLastKnownLocation.getLatitude() + "," + mLastKnownLocation.getLongitude();
 
-        sendRequest(url + latlng +"&result_type=locality&key=" + BuildConfig.MAPS_API_KEY, new okhttp3.Callback() {
+        sendRequest(url + latlng + "&result_type=locality&key=" + BuildConfig.MAPS_API_KEY, new okhttp3.Callback() {
             @Override
             public void onResponse(@NotNull Call call, @NotNull Response response) throws IOException {
                 try {
@@ -231,7 +239,7 @@ public class MainActivity extends AppCompatActivity {
         });
     }
 
-    private void sendRequest (String url, okhttp3.Callback callback) {
+    private void sendRequest(String url, okhttp3.Callback callback) {
         Request request = new Request.Builder()
                 .url(url)
                 .build();
