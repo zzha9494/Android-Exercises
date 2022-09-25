@@ -35,7 +35,9 @@ import org.json.JSONObject;
 
 import java.io.*;
 import java.text.SimpleDateFormat;
+import java.util.ArrayList;
 import java.util.Date;
+import java.util.List;
 import java.util.Locale;
 
 public class MainActivity extends AppCompatActivity {
@@ -57,9 +59,11 @@ public class MainActivity extends AppCompatActivity {
     // Keys for storing activity state.
     private static final String KEY_LOCATION = "location";
 
-    String fileName;
     OkHttpClient client;
 
+    List<MediaInfo> mediaInfos;
+
+    String fileName;
     String cityName = "No City";
 
     @Override
@@ -82,6 +86,8 @@ public class MainActivity extends AppCompatActivity {
 
         // http client to call api
         client = new OkHttpClient();
+
+        mediaInfos = new ArrayList<>();
 
         mVideoView = (VideoView) findViewById(R.id.videoView);
         mImageView = (ImageView) findViewById(R.id.photoView);
@@ -176,7 +182,7 @@ public class MainActivity extends AppCompatActivity {
                         mLastKnownLocation = new Location(defaultLocation);
                     }
                     // api call place
-                    getPlace();
+                    getPlace(fileName);
                     // Show location details on the location TextView
                     String loc = currentOrDefault + " Location: " +
                             Double.toString(mLastKnownLocation.getLatitude()) + ", " +
@@ -189,7 +195,7 @@ public class MainActivity extends AppCompatActivity {
         });
     }
 
-    private void getPlace() {
+    private void getPlace(String fileName) {
         String url = "https://maps.googleapis.com/maps/api/geocode/json?";
         String latlng = "latlng=" + mLastKnownLocation.getLatitude() + "," + mLastKnownLocation.getLongitude();
 
@@ -206,6 +212,12 @@ public class MainActivity extends AppCompatActivity {
                                 .getJSONArray("address_components");
                         cityName = address_components.getJSONObject(0).getString("long_name");
                     }
+                    mediaInfos.add(new MediaInfo(
+                            fileName,
+                            mLastKnownLocation.getLatitude(),
+                            mLastKnownLocation.getLongitude(),
+                            cityName
+                    ));
                     Log.i("info", cityName);
                 } catch (JSONException e) {
                     throw new RuntimeException(e);
