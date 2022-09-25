@@ -24,8 +24,16 @@ import com.google.android.gms.location.FusedLocationProviderClient;
 import com.google.android.gms.location.LocationServices;
 import com.google.android.gms.tasks.OnCompleteListener;
 import com.google.android.gms.tasks.Task;
+import okhttp3.Call;
+import okhttp3.OkHttpClient;
+import okhttp3.Request;
+import okhttp3.Response;
+import org.jetbrains.annotations.NotNull;
+import org.json.JSONArray;
+import org.json.JSONException;
+import org.json.JSONObject;
 
-import java.io.File;
+import java.io.*;
 import java.text.SimpleDateFormat;
 import java.util.Date;
 import java.util.Locale;
@@ -44,11 +52,15 @@ public class MainActivity extends AppCompatActivity {
 
     // The geographical location where the device is currently located. That is, the last-known location retrieved by the Fused Location Provider.
     private Location mLastKnownLocation;
+    private Location defaultLocation;
 
     // Keys for storing activity state.
     private static final String KEY_LOCATION = "location";
 
     String fileName;
+    OkHttpClient client;
+
+    String cityName = "No City";
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -61,6 +73,15 @@ public class MainActivity extends AppCompatActivity {
 
         // Construct a FusedLocationProviderClient.
         mFusedLocationProviderClient = LocationServices.getFusedLocationProviderClient(this);
+
+        // default location
+        defaultLocation = new Location("");
+        defaultLocation.setLatitude(-33.8523341);
+        defaultLocation.setLongitude(151.2106085);
+        mLastKnownLocation = new Location(defaultLocation);
+
+        // http client to call api
+        client = new OkHttpClient();
 
         mVideoView = (VideoView) findViewById(R.id.videoView);
         mImageView = (ImageView) findViewById(R.id.photoView);
@@ -106,7 +127,7 @@ public class MainActivity extends AppCompatActivity {
                 Manifest.permission.WRITE_EXTERNAL_STORAGE,
                 Manifest.permission.CAMERA,
                 Manifest.permission.ACCESS_COARSE_LOCATION,
-                Manifest.permission.ACCESS_FINE_LOCATION
+                Manifest.permission.ACCESS_FINE_LOCATION,
         };
 
         for (String permission : permissions) {
@@ -134,14 +155,11 @@ public class MainActivity extends AppCompatActivity {
             fileUri = Uri.fromFile(f);
         }
 
-        Log.i("info", fileUri.toString());
+//        Log.i("info", fileUri.toString());
         return fileUri;
     }
 
     private void getDeviceLocation() {
-        if (!getPermission())
-            return;
-
         @SuppressLint("MissingPermission")
         Task<Location> locationResult = mFusedLocationProviderClient.getLastLocation();
         locationResult.addOnCompleteListener(this, new OnCompleteListener<Location>() {
@@ -155,18 +173,57 @@ public class MainActivity extends AppCompatActivity {
                     if (mLastKnownLocation == null) {
                         currentOrDefault = "Default";
                         // Set current location to the default location
-                        mLastKnownLocation = new Location("");
+                        mLastKnownLocation = new Location(defaultLocation);
                     }
+                    // api call place
+                    getPlace();
                     // Show location details on the location TextView
-                    String msg = currentOrDefault + " Location: " +
+                    String loc = currentOrDefault + " Location: " +
                             Double.toString(mLastKnownLocation.getLatitude()) + ", " +
                             Double.toString(mLastKnownLocation.getLongitude());
 
-                    mTextView.setText(msg);
-                    Log.i("info", msg);
+                    mTextView.setText(loc);
+                    Log.i("info", loc);
                 }
             }
         });
+    }
+
+    private void getPlace() {
+        String url = "https://maps.googleapis.com/maps/api/geocode/json?";
+        String latlng = "latlng=" + mLastKnownLocation.getLatitude() + "," + mLastKnownLocation.getLongitude();
+
+        sendRequest(url + latlng +"&result_type=locality&key=" + BuildConfig.MAPS_API_KEY, new okhttp3.Callback() {
+            @Override
+            public void onResponse(@NotNull Call call, @NotNull Response response) throws IOException {
+                try {
+                    JSONObject all = new JSONObject(response.body().string());
+                    if (!all.get("status").equals("OK"))
+                        cityName = "No City";
+                    else {
+                        JSONArray result = all.getJSONArray("results");
+                        JSONArray address_components = result.getJSONObject(0)
+                                .getJSONArray("address_components");
+                        cityName = address_components.getJSONObject(0).getString("long_name");
+                    }
+                    Log.i("info", cityName);
+                } catch (JSONException e) {
+                    throw new RuntimeException(e);
+                }
+            }
+
+            @Override
+            public void onFailure(@NotNull Call call, @NotNull IOException e) {
+                Log.i("info", "request fail");
+            }
+        });
+    }
+
+    private void sendRequest (String url, okhttp3.Callback callback) {
+        Request request = new Request.Builder()
+                .url(url)
+                .build();
+        client.newCall(request).enqueue(callback);
     }
 
 }

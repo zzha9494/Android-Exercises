@@ -42,4 +42,17 @@ dependencies {
 
     implementation 'com.google.android.gms:play-services-maps:18.1.0'
     implementation 'com.google.android.gms:play-services-location:20.0.0'
+    implementation 'com.squareup.okhttp3:okhttp:4.10.0'
+}
+
+def getUsername() {
+    Properties properties = new Properties()
+    properties.load(project.rootProject.file('local.properties').newDataInputStream())
+    return properties.getProperty("MAPS_API_KEY");
+}
+
+android {
+    defaultConfig {
+        buildConfigField "String", "MAPS_API_KEY", "\""+getUsername()+"\""
+    }
 }
