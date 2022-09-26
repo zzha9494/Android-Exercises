@@ -23,8 +23,13 @@ import androidx.core.content.FileProvider;
 import com.google.android.gms.location.FusedLocationProviderClient;
 import com.google.android.gms.location.LocationServices;
 import com.google.android.gms.tasks.OnCompleteListener;
+import com.google.android.gms.tasks.OnFailureListener;
+import com.google.android.gms.tasks.OnSuccessListener;
 import com.google.android.gms.tasks.Task;
 import com.google.firebase.storage.FirebaseStorage;
+import com.google.firebase.storage.StorageException;
+import com.google.firebase.storage.StorageReference;
+import com.google.firebase.storage.UploadTask;
 import okhttp3.Call;
 import okhttp3.OkHttpClient;
 import okhttp3.Request;
@@ -44,7 +49,6 @@ import java.util.Locale;
 
 public class MainActivity extends AppCompatActivity {
     public static final int PERMISSION_REQUEST_CODE = 1;
-
     private static final int MY_REQUEST_OPEN_CAMERA = 101;
 
     VideoView mVideoView;
@@ -66,8 +70,9 @@ public class MainActivity extends AppCompatActivity {
 
     // firebase storage instance
     FirebaseStorage storage;
-    List<MediaInfo> mediaInfos;
 
+    List<MediaInfo> mediaInfos;
+    Uri appRoot;
     String fileName;
     String cityName = "No City";
 
@@ -163,6 +168,13 @@ public class MainActivity extends AppCompatActivity {
 
         Uri fileUri;
         if (Build.VERSION.SDK_INT >= 24) {
+            if (appRoot == null) {
+                appRoot = FileProvider.getUriForFile(
+                        this.getApplicationContext(),
+                        "com.example.assignment2.fileProvider",
+                        new File(getExternalFilesDir(null).toString())
+                );
+            }
             fileUri = FileProvider.getUriForFile(this.getApplicationContext(),
                     "com.example.assignment2.fileProvider", f);
         } else {
@@ -189,21 +201,23 @@ public class MainActivity extends AppCompatActivity {
                         // Set current location to the default location
                         mLastKnownLocation = new Location(defaultLocation);
                     }
-                    // api call place
-                    getPlace(fileName);
+
                     // Show location details on the location TextView
                     String loc = currentOrDefault + " Location: " +
                             Double.toString(mLastKnownLocation.getLatitude()) + ", " +
                             Double.toString(mLastKnownLocation.getLongitude());
-
                     mTextView.setText(loc);
                     Log.i("info", loc);
+
+                    // api call place
+                    // may take 40s to get response, from geocoding api
+                    getPlace();
                 }
             }
         });
     }
 
-    private void getPlace(String fileName) {
+    private void getPlace() {
         String url = "https://maps.googleapis.com/maps/api/geocode/json?";
         String latlng = "latlng=" + mLastKnownLocation.getLatitude() + "," + mLastKnownLocation.getLongitude();
 
@@ -220,15 +234,21 @@ public class MainActivity extends AppCompatActivity {
                                 .getJSONArray("address_components");
                         cityName = address_components.getJSONObject(0).getString("long_name");
                     }
+                    Log.i("info", cityName);
+
+                    // add info list
                     mediaInfos.add(new MediaInfo(
                             fileName,
                             mLastKnownLocation.getLatitude(),
                             mLastKnownLocation.getLongitude(),
                             cityName
                     ));
-                    Log.i("info", cityName);
+
+                    // may take 9 min to upload, seriously
+                    uploadFile();
+
                 } catch (JSONException e) {
-                    throw new RuntimeException(e);
+//                    throw new RuntimeException(e);
                 }
             }
 
@@ -244,6 +264,29 @@ public class MainActivity extends AppCompatActivity {
                 .url(url)
                 .build();
         client.newCall(request).enqueue(callback);
+    }
+
+    private void uploadFile() {
+        Uri file = Uri.withAppendedPath(appRoot, fileName);
+        StorageReference storageRef = storage.getReference();
+        StorageReference riversRef = storageRef.child(cityName).child(fileName);
+
+        UploadTask uploadTask = riversRef.putFile(file);
+        // Register observers to listen for when the download is done or if it fails
+        uploadTask.addOnFailureListener(new OnFailureListener() {
+            @Override
+            public void onFailure(@NonNull Exception exception) {
+                // Handle unsuccessful uploads
+                int errorCode = ((StorageException) exception).getErrorCode();
+                String errorMessage = exception.getMessage();
+                Log.i("info", errorCode + errorMessage);
+            }
+        }).addOnSuccessListener(new OnSuccessListener<UploadTask.TaskSnapshot>() {
+            @Override
+            public void onSuccess(UploadTask.TaskSnapshot taskSnapshot) {
+                Log.i("info", "upload ok");
+            }
+        });
     }
 
 }
